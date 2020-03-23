@@ -20,6 +20,8 @@
 package org.amahi.anywhere.util;
 
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -27,15 +29,19 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.os.Build;
 import android.os.RemoteException;
-import android.support.annotation.NonNull;
-import android.support.v4.app.NotificationManagerCompat;
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import android.support.v4.media.MediaDescriptionCompat;
 import android.support.v4.media.MediaMetadataCompat;
+import androidx.media.app.NotificationCompat.MediaStyle;
+import androidx.media.session.MediaButtonReceiver;
 import android.support.v4.media.session.MediaControllerCompat;
 import android.support.v4.media.session.MediaSessionCompat;
 import android.support.v4.media.session.PlaybackStateCompat;
-import android.support.v7.app.NotificationCompat;
 import android.util.Log;
 
 import org.amahi.anywhere.R;
@@ -55,7 +61,7 @@ public class MediaNotificationManager extends BroadcastReceiver {
     private static final int NOTIFICATION_ID = 412;
     private static final int REQUEST_CODE = 100;
     private static final String TAG = "notification_manager";
-
+    private static final String CHANNEL_ID = "media_playback_channel";
     private final AudioService mService;
     private final NotificationManagerCompat mNotificationManager;
     private final PendingIntent mPauseIntent;
@@ -228,13 +234,31 @@ public class MediaNotificationManager extends BroadcastReceiver {
         }
     }
 
+    @RequiresApi(Build.VERSION_CODES.O)
+    private void createChannel() {
+        NotificationManager mNotificationManager = (NotificationManager) mService.
+            getSystemService(Context.NOTIFICATION_SERVICE);
+        // The user-visible name of the channel.
+        String name = "Media Playback";
+        // The user-visible description of the channel.
+        String description = "Used for playing songs";
+        int importance = NotificationManager.IMPORTANCE_LOW;
+        NotificationChannel mChannel = new NotificationChannel(CHANNEL_ID, name, importance);
+        // Configure the notification channel.
+        mChannel.setDescription(description);
+        mChannel.setShowBadge(false);
+        mChannel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        mNotificationManager.createNotificationChannel(mChannel);
+    }
+
+
     private Notification createNotification() {
-        Log.d(TAG, "updateNotificationMetadata. mMetadata=" + mMetadata);
         if (mMetadata == null || mPlaybackState == null) {
             return null;
         }
 
-        NotificationCompat.Builder notificationBuilder = new NotificationCompat.Builder(mService);
+        NotificationCompat.Builder notificationBuilder =
+            new NotificationCompat.Builder(mService, CHANNEL_ID);
         notificationBuilder.addAction(android.R.drawable.ic_media_previous,
             mService.getString(R.string.label_previous), mPreviousIntent);
 
@@ -251,10 +275,19 @@ public class MediaNotificationManager extends BroadcastReceiver {
             audioAlbumArt = BitmapFactory.decodeResource(mService.getResources(), R.drawable.default_audiotrack);
         }
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            createChannel();
+        }
+
         notificationBuilder
-            .setStyle(new NotificationCompat.MediaStyle()
-                .setShowActionsInCompactView(1)  // show only play/pause in compact view
-                .setMediaSession(mSessionToken))
+            .setStyle(
+                new MediaStyle()
+                    .setMediaSession(mSessionToken)
+                    .setShowActionsInCompactView(1)
+                    .setShowCancelButton(true)
+                    .setCancelButtonIntent(
+                        MediaButtonReceiver.buildMediaButtonPendingIntent(
+                            mService, PlaybackStateCompat.ACTION_STOP)))
             .setSmallIcon(getAudioPlayerNotificationIcon())
             .setLargeIcon(getAudioPlayerNotificationArtwork(audioAlbumArt))
             .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
@@ -262,7 +295,7 @@ public class MediaNotificationManager extends BroadcastReceiver {
             .setContentTitle(description.getTitle())
             .setContentText(description.getSubtitle())
             .setOngoing(mPlaybackState.getState() == PlaybackStateCompat.STATE_PLAYING);
-//        setNotificationPlaybackState(notificationBuilder);
+        //setNotificationPlaybackState(notificationBuilder);
         return notificationBuilder.build();
     }
 

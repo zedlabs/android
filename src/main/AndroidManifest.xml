@@ -17,6 +17,7 @@
   ~ along with Amahi. If not, see <http ://www.gnu.org/licenses/>.
 -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools"
     package="org.amahi.anywhere"
     android:installLocation="auto">
 
@@ -31,6 +32,7 @@
     <uses-permission android:name="android.permission.USE_CREDENTIALS" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
 
     <permission android:name="android.permission.MEDIA_CONTENT_CONTROL" />
 
@@ -51,9 +53,11 @@
         android:icon="@drawable/ic_launcher"
         android:label="@string/application_name"
         android:resizeableActivity="true"
-        android:theme="@style/Theme.Amahi">
+        android:theme="@style/Theme.Amahi"
+        android:usesCleartextTraffic="true"
+        tools:ignore="GoogleAppIndexingWarning">
         <provider
-            android:name="android.support.v4.content.FileProvider"
+            android:name="androidx.core.content.FileProvider"
             android:authorities="org.amahi.anywhere.fileprovider"
             android:exported="false"
             android:grantUriPermissions="true">
@@ -96,7 +100,7 @@
         <activity
             android:name=".activity.ServerFileAudioActivity"
             android:launchMode="singleTop"
-            android:theme="@style/Theme.Amahi.Fullscreen" />
+            android:theme="@style/Theme.Amahi.NoActionBar.Audio" />
         <activity
             android:name=".activity.ServerFileImageActivity"
             android:theme="@style/Theme.Amahi.Fullscreen" />
@@ -157,7 +161,7 @@
                 <action android:name="android.media.AUDIO_BECOMING_NOISY" />
             </intent-filter>
         </receiver>
-        <receiver android:name="android.support.v4.media.session.MediaButtonReceiver">
+        <receiver android:name="androidx.media.session.MediaButtonReceiver">
             <intent-filter>
                 <action android:name="android.intent.action.MEDIA_BUTTON" />
                 <action android:name="android.media.AUDIO_BECOMING_NOISY" />

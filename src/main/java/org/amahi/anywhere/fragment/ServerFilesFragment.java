@@ -30,18 +30,17 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Parcelable;
-import android.support.annotation.IntDef;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.Fragment;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.widget.DividerItemDecoration;
-import android.support.v7.widget.GridLayoutManager;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.SearchView;
+import androidx.annotation.IntDef;
+import androidx.annotation.NonNull;
+import androidx.annotation.RequiresApi;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.snackbar.Snackbar;
+import androidx.fragment.app.Fragment;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.appcompat.widget.SearchView;
 import android.util.DisplayMetrics;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -114,11 +113,13 @@ public class ServerFilesFragment extends Fragment implements
     SearchView.OnQueryTextListener,
     FilesFilterAdapter.onFilterListChange,
     EasyPermissions.PermissionCallbacks,
-    CastStateListener {
+    CastStateListener,
+    AlertDialogFragment.DeleteFileDialogCallback {
     public final static int EXTERNAL_STORAGE_PERMISSION = 101;
 
     public static final int SORT_MODIFICATION_TIME = 0;
     public static final int SORT_NAME = 1;
+    public static final int SORT_SIZE = 2;
 
     @Inject
     ServerClient serverClient;
@@ -334,18 +335,32 @@ public class ServerFilesFragment extends Fragment implements
     private void deleteFile() {
         if (!isOfflineFragment()) {
             deleteFilePosition = getListAdapter().getSelectedPosition();
-            new AlertDialog.Builder(getContext())
-                .setTitle(R.string.message_delete_file_title)
-                .setMessage(R.string.message_delete_file_body)
-                .setPositiveButton(R.string.button_yes, (dialog, which) -> {
-                    deleteProgressDialog.show();
-                    serverClient.deleteFile(getShare(), getCheckedFile());
-                })
-                .setNegativeButton(R.string.button_no, null)
-                .show();
+            showDeleteConfirmationDialog();
         } else {
             BusProvider.getBus().post(new OfflineFileDeleteEvent(getCheckedFile()));
         }
+    }
+
+    private void showDeleteConfirmationDialog() {
+        AlertDialogFragment deleteFileDialog = new AlertDialogFragment();
+        Bundle bundle = new Bundle();
+        bundle.putInt(Fragments.Arguments.DIALOG_TYPE, AlertDialogFragment.DELETE_FILE_DIALOG);
+        deleteFileDialog.setArguments(bundle);
+        deleteFileDialog.setTargetFragment(this, 2);
+        deleteFileDialog.show(getFragmentManager(), "delete_dialog");
+    }
+
+    @Override
+    public void dialogPositiveButtonOnClick() {
+        deleteProgressDialog.show();
+
+        serverClient.deleteFile(getShare(), getCheckedFile());
+
+    }
+
+    @Override
+    public void dialogNegativeButtonOnClick() {
+
     }
 
     private void changeOfflineState(boolean enable) {
@@ -400,6 +415,7 @@ public class ServerFilesFragment extends Fragment implements
         if (fileDeleteEvent.isDeleted()) {
             if (!isMetadataAvailable()) {
                 if (!isOfflineFragment()) {
+                    deleteFilePosition = getListAdapter().getSelectedPosition();
                     getFilesAdapter().removeFile(deleteFilePosition);
                 } else {
                     getListAdapter().removeFile(getListAdapter().getSelectedPosition());
@@ -469,15 +485,29 @@ public class ServerFilesFragment extends Fragment implements
             }
         }
 
-        addListItemDivider();
+        hideFloatingActionButtonOnScroll();
     }
 
-    private void addListItemDivider() {
-        DividerItemDecoration dividerItemDecoration = new DividerItemDecoration(
-            getRecyclerView().getContext(),
-            DividerItemDecoration.VERTICAL);
+    private void hideFloatingActionButtonOnScroll() {
+        getRecyclerView().addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(@NonNull RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+            }
 
-        getRecyclerView().addItemDecoration(dividerItemDecoration);
+            @Override
+            public void onScrolled(@NonNull RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                FloatingActionButton fab = getActivity().findViewById(R.id.fab_upload);
+                if (fab != null) {
+                    if (dy > 0 && fab.getVisibility() == View.VISIBLE) {
+                        fab.hide();
+                    } else if (dy < 0 && fab.getVisibility() != View.VISIBLE) {
+                        fab.show();
+                    }
+                }
+            }
+        });
     }
 
     public int calculateNoOfColumns(Context context) {
@@ -519,6 +549,7 @@ public class ServerFilesFragment extends Fragment implements
 
         setUpFilesContent(files);
         setUpFilesContentSort(filesSort);
+        lastSelectedFilePosition = state.getInt(State.SELECTED_ITEM);
         getListAdapter().setSelectedPosition(state.getInt(State.SELECTED_ITEM, -1));
 
         showFilesContent();
@@ -642,6 +673,9 @@ public class ServerFilesFragment extends Fragment implements
 
             case SORT_MODIFICATION_TIME:
                 return new FileModificationTimeComparator();
+
+            case SORT_SIZE:
+                return new FileSizeComparator();
 
             default:
                 return null;
@@ -786,6 +820,10 @@ public class ServerFilesFragment extends Fragment implements
                 menuItem.setIcon(R.drawable.ic_menu_sort_modification_time);
                 break;
 
+            case SORT_SIZE:
+                menuItem.setIcon(R.drawable.ic_menu_sort_size);
+                break;
+
             default:
                 break;
         }
@@ -811,6 +849,10 @@ public class ServerFilesFragment extends Fragment implements
                 break;
 
             case SORT_MODIFICATION_TIME:
+                filesSort = SORT_SIZE;
+                break;
+
+            case SORT_SIZE:
                 filesSort = SORT_NAME;
                 break;
 
@@ -958,7 +1000,7 @@ public class ServerFilesFragment extends Fragment implements
             getView().findViewById(R.id.none_text).setVisibility(empty ? View.VISIBLE : View.GONE);
     }
 
-    @IntDef({SORT_MODIFICATION_TIME, SORT_NAME})
+    @IntDef({SORT_MODIFICATION_TIME, SORT_NAME, SORT_SIZE})
     public @interface Types {
     }
 
@@ -981,6 +1023,13 @@ public class ServerFilesFragment extends Fragment implements
         @Override
         public int compare(ServerFile firstFile, ServerFile secondFile) {
             return -firstFile.getModificationTime().compareTo(secondFile.getModificationTime());
+        }
+    }
+
+    private static final class FileSizeComparator implements Comparator<ServerFile> {
+        @Override
+        public int compare(ServerFile firstFile, ServerFile secondFile) {
+            return -Long.compare(firstFile.getSize(), secondFile.getSize());
         }
     }
 }

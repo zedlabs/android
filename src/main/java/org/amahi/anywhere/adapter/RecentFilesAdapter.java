@@ -3,7 +3,7 @@ package org.amahi.anywhere.adapter;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.support.v7.widget.RecyclerView;
+import androidx.recyclerview.widget.RecyclerView;
 import android.text.format.Formatter;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -58,7 +58,7 @@ public class RecentFilesAdapter extends RecyclerView.Adapter<RecentFilesAdapter.
 
     private void setUpViewHolder(RecentFile file, RecentFilesViewHolder fileHolder) {
         Uri uri = Uri.parse(file.getUri());
-        String name = Uri.parse(uri.getQueryParameter("p")).getLastPathSegment();
+        String name = uri.getQueryParameter("p").substring(uri.getQueryParameter("p").lastIndexOf('/')+1);
         String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substring(name.lastIndexOf(".") + 1));
         String size = Formatter.formatFileSize(context, file.getSize());
 

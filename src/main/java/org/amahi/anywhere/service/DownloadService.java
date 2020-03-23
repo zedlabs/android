@@ -10,9 +10,10 @@ import android.net.ConnectivityManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.IBinder;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.LocalBroadcastManager;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.app.NotificationCompat;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import android.util.Log;
 
 import com.squareup.otto.Subscribe;
@@ -46,6 +47,7 @@ public class DownloadService extends Service implements Downloader.DownloadCallb
 
     private static final int NOTIFICATION_OFFLINE_ID = 101;
     private static final int NOTIFICATION_ERROR_ID = 101;
+    private static final String DOWNLOAD_CHANNEL_ID = "file_download";
 
     @Inject
     ServerClient serverClient;
@@ -53,7 +55,7 @@ public class DownloadService extends Service implements Downloader.DownloadCallb
     @Inject
     Downloader downloader;
     private OfflineFileRepository offlineFileRepository;
-    private Notification.Builder notificationBuilder;
+    private NotificationCompat.Builder notificationBuilder;
     private NetworkUtils networkUtils;
     private boolean isDownloading;
 
@@ -150,7 +152,7 @@ public class DownloadService extends Service implements Downloader.DownloadCallb
     }
 
     private void resumeDownload(long downloadId, String fileName) {
-        notificationBuilder = new Notification.Builder(getApplicationContext());
+        notificationBuilder = new NotificationCompat.Builder(getApplicationContext(), DOWNLOAD_CHANNEL_ID);
         notificationBuilder
             .setOngoing(true)
             .setSmallIcon(R.drawable.ic_app_logo)
@@ -223,7 +225,7 @@ public class DownloadService extends Service implements Downloader.DownloadCallb
 
     @Override
     public void downloadStarted(int id, String fileName) {
-        notificationBuilder = new Notification.Builder(getApplicationContext());
+        notificationBuilder = new NotificationCompat.Builder(getApplicationContext(), DOWNLOAD_CHANNEL_ID);
         notificationBuilder
             .setOngoing(true)
             .setSmallIcon(R.drawable.ic_app_logo)
